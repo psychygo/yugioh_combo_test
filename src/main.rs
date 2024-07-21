@@ -25,6 +25,7 @@ fn main() {
         .expect(format!("Failed to read deck file: {}", &args[1]).as_str());
     println!("{}\n", deck_string);
     let deck = convert_decklist_to_vec(deck_string);
+
     let mut combo_file = File::open(&args[2]).unwrap();
     let mut combo_string = String::new();
     combo_file
@@ -52,6 +53,7 @@ fn main() {
         let mut d = deck.clone();
         d.shuffle(&mut rng);
         let mut hand: Vec<String> = d.iter().take(5).map(|x| x.clone()).collect();
+        d = d[5..].to_vec();
         let mut success = false;
         if hand.contains(&String::from("Pot of Prosperity")) && use_prosp {
             let interim: Vec<String> = d.iter().skip(5).take(6).map(|x| x.clone()).collect();
