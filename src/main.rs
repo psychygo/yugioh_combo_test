@@ -89,19 +89,22 @@ fn main() {
 fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule: Pair<Rule>) -> bool {
     match rule.as_rule() {
         Rule::ident => {
-            return hand.iter().any(|x| x == rule.as_str());
+            return hand.iter().any(|x| x == rule.as_str().trim_end().trim());
         }
         Rule::contains_ident => {
             let ident = rule.into_inner().next().unwrap().as_str();
-            return hand.iter().any(|x| x.contains(ident));
+            return hand.iter().any(|x| x.contains(ident.trim_end().trim()));
         }
         Rule::num_ident => {
             let mut iter = rule.into_inner();
             let ident = iter.next().unwrap();
             let comp = iter.next().unwrap();
 
-            let contains_fn =
-                |ident: Pair<Rule>| hand.iter().filter(|x| x.contains(ident.as_str())).count();
+            let contains_fn = |ident: Pair<Rule>| {
+                hand.iter()
+                    .filter(|x| x.contains(ident.as_str().trim_end()))
+                    .count()
+            };
             let equals_fn = |ident: Pair<Rule>| {
                 hand.iter()
                     .filter(|x| x.as_str() == ident.as_str().trim_end())
@@ -218,7 +221,7 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule: Pair<Rule>) -> bool 
             }
 
             for option in options {
-                let index = hand.iter().position(|x| x == option.as_str());
+                let index = hand.iter().position(|x| x.as_str() == option.as_str());
                 if let Some(index) = index {
                     if !cards_used[index] {
                         num -= 1;
@@ -252,7 +255,7 @@ fn convert_decklist_to_vec(decklist: String) -> Vec<String> {
             .trim_end()
             .to_string();
         if let Some(num) = line_iter.last().unwrap().to_digit(10) {
-            let card = card_raw.trim_end().to_string();
+            let card = card_raw.trim_end().trim().to_string();
             for _ in 0..num {
                 deck.push(String::from(card.clone()));
             }

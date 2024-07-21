@@ -15,4 +15,4 @@ less = {"<" ~ digit}
 greater = {">" ~ digit}
 equal = {"=" ~ digit}
 WHITESPACE = _{" "}
-newline = _{"\n"}
+newline = _{("\n"|"\r\n")}
