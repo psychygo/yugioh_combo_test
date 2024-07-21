@@ -1,0 +1,18 @@
+ident = { ('a'..'z' | 'A'..'Z' | '0'..'9')+ }
+digit = {'0'..'9'}
+
+exp = { (not | "(" ~ exp ~ ")" | pick_multi | num_ident | contains_ident | ident) ~ (and|or)*}
+
+file = _{SOI ~ (exp ~ newline)* ~ exp?}
+
+not = { "!" ~ (exp | ident) }
+or = { "|" ~ (exp | ident) }
+and = { "&" ~ (exp | ident) }
+contains_ident = { ident ~ "?" }
+pick_multi = { digit ~ "[" ~ ident ~ ("," ~ (contains_ident | ident))* ~ "]" }
+num_ident = { (ident | contains_ident) ~ (less | greater | equal) }
+less = {"<" ~ digit}
+greater = {">" ~ digit}
+equal = {"=" ~ digit}
+WHITESPACE = _{" "}
+newline = _{"\n"}

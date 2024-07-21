@@ -1,0 +1,11 @@
+/home/wyatt/yugioh_combo_test/target/debug/deps/libpest_generator-d214f2f7471bd56c.rmeta: /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/lib.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/macros.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/docs.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/generator.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/parse_derive.rs
+
+/home/wyatt/yugioh_combo_test/target/debug/deps/libpest_generator-d214f2f7471bd56c.rlib: /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/lib.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/macros.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/docs.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/generator.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/parse_derive.rs
+
+/home/wyatt/yugioh_combo_test/target/debug/deps/pest_generator-d214f2f7471bd56c.d: /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/lib.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/macros.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/docs.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/generator.rs /home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/parse_derive.rs
+
+/home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/lib.rs:
+/home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/macros.rs:
+/home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/docs.rs:
+/home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/generator.rs:
+/home/wyatt/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.11/src/parse_derive.rs:
