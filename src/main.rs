@@ -1,6 +1,13 @@
 use std::{
-    borrow::Borrow, collections::HashMap, env, fs::File, hash::Hash, io::Read, ops::Deref,
+    borrow::Borrow,
+    collections::{HashMap, HashSet},
+    env,
+    fs::File,
+    hash::Hash,
+    io::Read,
+    ops::{Deref, Index},
     str::FromStr,
+    time::Instant,
 };
 
 use pest::{
@@ -22,6 +29,8 @@ fn create_tree(rule: Pair<Rule>) -> RuleTree {
     }
     RuleTree { rule, inner }
 }
+
+const PROSP: &'static str = "Pot of Prosperity";
 
 #[derive(Parser)]
 #[grammar = "yugioh_combo_grammar.pest"]
@@ -56,10 +65,11 @@ fn main() {
     }
 
     let file = IdentParser::parse(Rule::file, &combo_string).unwrap_or_else(|e| panic!("{}", e));
+
     // Because ident_list is silent, the iterator will contain idents
     let mut rng = rand::thread_rng();
     let mut sum = 0;
-    let iter = 100_000;
+    let iter = 1_000_000;
     let hand_size = 5;
 
     // Implement pot of prosperity as six iterations of size six breaking early if possible
@@ -70,6 +80,7 @@ fn main() {
     }
 
     for _ in 0..iter {
+        //let start = Instant::now();
         deck.shuffle(&mut rng);
         let mut hand = Vec::new();
         for _ in 0..hand_size {
@@ -77,7 +88,7 @@ fn main() {
         }
 
         let mut success = false;
-        if hand.contains(&String::from("Pot of Prosperity")) && use_prosp {
+        if hand.iter().any(|x| x.eq(PROSP)) && use_prosp {
             let mut prosp_interim = Vec::new();
             for _ in 0..6 {
                 prosp_interim.push(deck.pop().unwrap());
@@ -86,7 +97,7 @@ fn main() {
             for c in prosp_interim.iter() {
                 hand.push(c.to_string());
                 for rule in tree_vec.iter() {
-                    if match_rule(&hand, &deck, &rule) == true {
+                    if match_rule(&hand, &deck, &rule) {
                         success = true;
                         break;
                     }
@@ -99,14 +110,15 @@ fn main() {
             }
             deck.extend(prosp_interim);
         } else {
-            for rule in tree_vec.iter() {
-                if match_rule(&hand, &deck, &rule) == true {
+            if tree_vec.iter().any(|rule| match_rule(&hand, &deck, &rule)) {
                     sum += 1;
-                    break;
-                }
             }
         }
         deck.extend(hand);
+        /*eprintln!(
+            "Iter len: {}",
+            Instant::now().duration_since(start).as_micros()
+        )*/
     }
     println!("Success Rate: {}%", sum as f32 / iter as f32 * 100.0);
 }
@@ -197,13 +209,10 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
             }
         }
         Rule::not => {
-            let s = rule_tree.rule.as_str();
             let b = !match_rule(hand, deck, &rule_tree.inner.first().unwrap());
-            //println!("not: {} {}", s, b);
             return b;
         }
         Rule::exp => {
-            //println!("exp: {}", rule.as_str());
             let mut result = true;
             for inner_rule in rule_tree.inner.iter() {
                 match inner_rule.rule.as_rule() {
@@ -279,7 +288,7 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
 }
 
 fn convert_decklist_to_vec(decklist: String) -> Vec<String> {
-    let mut deck = Vec::new();
+    let mut deck = Vec::with_capacity(60);
     for line in decklist.lines() {
         let line_iter = line.chars();
         let card_raw: String = line
@@ -291,7 +300,7 @@ fn convert_decklist_to_vec(decklist: String) -> Vec<String> {
         if let Some(num) = line_iter.last().unwrap().to_digit(10) {
             let card = card_raw.trim_end().trim().to_string();
             for _ in 0..num {
-                deck.push(String::from(card.clone()));
+                deck.push(card.clone());
             }
         }
     }
