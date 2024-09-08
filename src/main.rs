@@ -20,6 +20,8 @@ use rand::seq::SliceRandom;
 struct RuleTree<'a> {
     rule: Pair<'a, Rule>,
     inner: Vec<RuleTree<'a>>,
+    normalized_string: Option<String>,
+    rule_enum: Rule,
 }
 
 fn create_tree(rule: Pair<Rule>) -> RuleTree {
@@ -27,7 +29,21 @@ fn create_tree(rule: Pair<Rule>) -> RuleTree {
     for inner_rule in rule.clone().into_inner() {
         inner.push(create_tree(inner_rule));
     }
-    RuleTree { rule, inner }
+
+    match rule.as_rule() {
+        Rule::ident | Rule::contains_ident => RuleTree {
+            normalized_string: Some(normalize_string(rule.as_str().to_string())),
+            rule_enum: rule.as_rule(),
+            rule,
+            inner,
+        },
+        _ => RuleTree {
+            rule_enum: rule.as_rule(),
+            rule,
+            inner,
+            normalized_string: None,
+        },
+    }
 }
 
 const PROSP: &'static str = "Pot of Prosperity";
@@ -79,42 +95,45 @@ fn main() {
         tree_vec.push(create_tree(rule));
     }
 
+    let mut prosp_interim = Vec::with_capacity(6);
+    let mut hand = Vec::with_capacity(hand_size + 1);
+
     for _ in 0..iter {
         //let start = Instant::now();
         deck.shuffle(&mut rng);
-        let mut hand = Vec::new();
-        for _ in 0..hand_size {
-            hand.push(deck.pop().unwrap());
-        }
+
+        hand.extend(deck.drain(0..hand_size));
 
         let mut success = false;
-        if hand.iter().any(|x| x.eq(PROSP)) && use_prosp {
-            let mut prosp_interim = Vec::new();
-            for _ in 0..6 {
-                prosp_interim.push(deck.pop().unwrap());
-            }
+        if use_prosp && hand.iter().any(|x| x.eq(PROSP)) {
+            prosp_interim.extend(deck.drain(0..6));
 
-            for c in prosp_interim.iter() {
-                hand.push(c.to_string());
+            let prosp_cards = prosp_interim.drain(..);
+            for c in prosp_cards {
+                if success {
+                    deck.push(c);
+                    continue;
+                }
+
+                hand.push(c);
                 for rule in tree_vec.iter() {
                     if match_rule(&hand, &deck, &rule) {
                         success = true;
-                        break;
                     }
                 }
-                hand.pop();
+
+                deck.push(hand.pop().unwrap());
+
                 if success {
                     sum += 1;
-                    break;
                 }
             }
-            deck.extend(prosp_interim);
         } else {
             if tree_vec.iter().any(|rule| match_rule(&hand, &deck, &rule)) {
-                    sum += 1;
+                sum += 1;
             }
         }
-        deck.extend(hand);
+        deck.extend(hand.drain(..));
         /*eprintln!(
             "Iter len: {}",
             Instant::now().duration_since(start).as_micros()
@@ -124,29 +143,54 @@ fn main() {
 }
 
 fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> bool {
-    match rule_tree.rule.as_rule() {
+    match rule_tree.rule_enum {
         Rule::ident => {
-            return hand
-                .iter()
-                .any(|x| x == rule_tree.rule.as_str().trim_end().trim());
+            return hand.iter().any(|x| {
+                x.as_str()
+                    == rule_tree
+                        .normalized_string
+                        .as_ref()
+                        .expect("Invariant broken: ident must set normalized_string")
+            });
         }
         Rule::contains_ident => {
-            let ident = rule_tree.inner.first().unwrap().rule.as_str();
-            return hand.iter().any(|x| x.contains(ident.trim_end().trim()));
+            return hand.iter().any(|x| {
+                x.as_str().contains(
+                    rule_tree
+                        .normalized_string
+                        .as_ref()
+                        .expect("Invariant broken: Contains ident must set normalized_string"),
+                )
+            });
         }
         Rule::num_ident => {
             let mut iter = rule_tree.inner.iter();
             let ident = iter.next().unwrap();
             let comp = iter.next().unwrap();
 
-            let contains_fn = |ident: &Pair<Rule>| {
+            let contains_fn = |ident: &RuleTree| {
                 hand.iter()
-                    .filter(|x| x.contains(ident.as_str().trim_end()))
+                    .filter(|x| {
+                        x.contains(
+                            ident
+                                .normalized_string
+                                .as_ref()
+                                .expect("Invariant Broken on ident")
+                                .as_str(),
+                        )
+                    })
                     .count()
             };
-            let equals_fn = |ident: &Pair<Rule>| {
+            let equals_fn = |ident: &RuleTree| {
                 hand.iter()
-                    .filter(|x| x.as_str() == ident.as_str().trim_end())
+                    .filter(|x| {
+                        x.as_str()
+                            == ident
+                                .normalized_string
+                                .as_ref()
+                                .expect("Invariant Broken on ident")
+                                .as_str()
+                    })
                     .count()
             };
 
@@ -156,55 +200,28 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
                 _ => unreachable!(),
             };
 
+            let target_num = comp
+                .inner
+                .iter()
+                .next()
+                .unwrap()
+                .rule
+                .as_str()
+                .parse::<usize>()
+                .unwrap();
+
+            let num_found;
+
+            if use_contains {
+                num_found = contains_fn(&ident);
+            } else {
+                num_found = equals_fn(&ident);
+            }
+
             match comp.rule.as_rule() {
-                Rule::greater => {
-                    let num = comp
-                        .inner
-                        .iter()
-                        .next()
-                        .unwrap()
-                        .rule
-                        .as_str()
-                        .parse::<usize>()
-                        .unwrap();
-                    if use_contains {
-                        return contains_fn(&ident.rule) > num;
-                    } else {
-                        return equals_fn(&ident.rule) > num;
-                    }
-                }
-                Rule::less => {
-                    let num = comp
-                        .inner
-                        .iter()
-                        .next()
-                        .unwrap()
-                        .rule
-                        .as_str()
-                        .parse::<usize>()
-                        .unwrap();
-                    if use_contains {
-                        return contains_fn(&ident.rule) < num;
-                    } else {
-                        return equals_fn(&ident.rule) < num;
-                    }
-                }
-                Rule::equal => {
-                    let num = comp
-                        .inner
-                        .iter()
-                        .next()
-                        .unwrap()
-                        .rule
-                        .as_str()
-                        .parse::<usize>()
-                        .unwrap();
-                    if use_contains {
-                        return contains_fn(&ident.rule) == num;
-                    } else {
-                        return equals_fn(&ident.rule) == num;
-                    }
-                }
+                Rule::greater => num_found > target_num,
+                Rule::less => num_found < target_num,
+                Rule::equal => num_found == target_num,
                 _ => unreachable!(),
             }
         }
@@ -215,7 +232,7 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
         Rule::exp => {
             let mut result = true;
             for inner_rule in rule_tree.inner.iter() {
-                match inner_rule.rule.as_rule() {
+                match inner_rule.rule_enum {
                     Rule::and => {
                         result = result && match_rule(hand, deck, &inner_rule);
                     }
@@ -305,4 +322,20 @@ fn convert_decklist_to_vec(decklist: String) -> Vec<String> {
         }
     }
     deck
+}
+
+fn normalize_string(str: String) -> String {
+    let mut new_str = String::with_capacity(str.len());
+    let mut keep = true;
+    for c in str.chars() {
+        if c == '\\' {
+            keep = false;
+            continue;
+        } else if !keep {
+            keep = true;
+            continue;
+        }
+        new_str.push(c);
+    }
+    return new_str.trim_end().trim().to_string();
 }

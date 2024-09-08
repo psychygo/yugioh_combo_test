@@ -1,4 +1,4 @@
-ident = { ('a'..'z' | 'A'..'Z' | '0'..'9')+ }
+ident = { ('a'..'z' | 'A'..'Z' | '0'..'9' | "-" | "\\" ~ ("!" | "?" | "&"))+ }
 digit = {'0'..'9'}
 
 exp = { (not | "(" ~ exp ~ ")" | pick_multi | num_ident | contains_ident | ident) ~ (and|or)*}
