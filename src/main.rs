@@ -1,21 +1,54 @@
-use std::{
-    borrow::Borrow,
-    collections::{HashMap, HashSet},
-    env,
-    fs::File,
-    hash::Hash,
-    io::Read,
-    ops::{Deref, Index},
-    str::FromStr,
-    time::Instant,
-};
+use std::{env, fs::File, hash::Hash, io::Read};
 
-use pest::{
-    iterators::{Pair, Pairs},
-    Parser,
-};
+use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
-use rand::seq::SliceRandom;
+
+#[derive(Clone)]
+struct Hand<'b> {
+    main: &'b [String],
+    prosp_interim: &'b [String],
+    prosp_idx: usize,
+    iter_idx: usize,
+    should_fail: bool,
+}
+
+impl<'b> Iterator for Hand<'b> {
+    type Item = &'b String;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.iter_idx < self.main.len() {
+            let foo = &self.main[self.iter_idx];
+            self.iter_idx += 1;
+            return Some(foo);
+        } else {
+            if self.prosp_idx < self.prosp_interim.len() && !self.should_fail {
+                self.should_fail = true;
+                return Some(&self.prosp_interim[self.prosp_idx]);
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+impl Hand<'_> {
+    fn next_hand(&mut self) -> bool {
+        self.prosp_idx += 1;
+        self.should_fail = false;
+        self.iter_idx = 0;
+        if self.prosp_idx < self.prosp_interim.len() {
+            true
+        } else {
+            false
+        }
+    }
+    fn len(&self) -> usize {
+        let mut result = self.main.len();
+        if self.prosp_interim.len() != 0 {
+            result += 1;
+        }
+        result
+    }
+}
 
 struct RuleTree<'a> {
     rule: Pair<'a, Rule>,
@@ -45,8 +78,6 @@ fn create_tree(rule: Pair<Rule>) -> RuleTree {
         },
     }
 }
-
-const PROSP: &'static str = "Pot of Prosperity";
 
 #[derive(Parser)]
 #[grammar = "yugioh_combo_grammar.pest"]
@@ -81,9 +112,10 @@ fn main() {
     }
 
     let file = IdentParser::parse(Rule::file, &combo_string).unwrap_or_else(|e| panic!("{}", e));
+    let prosp = String::from("Pot of Prosperity");
 
     // Because ident_list is silent, the iterator will contain idents
-    let mut rng = rand::thread_rng();
+    //let mut rng = rand::thread_rng();
     let mut sum = 0;
     let iter = 1_000_000;
     let hand_size = 5;
@@ -95,57 +127,39 @@ fn main() {
         tree_vec.push(create_tree(rule));
     }
 
-    let mut prosp_interim = Vec::with_capacity(6);
-    let mut hand = Vec::with_capacity(hand_size + 1);
-
     for _ in 0..iter {
         //let start = Instant::now();
-        deck.shuffle(&mut rng);
+        //deck.shuffle(&mut rng);
+        fastrand::shuffle(&mut deck);
+        let mut hand = Hand {
+            main: &deck[..hand_size],
+            prosp_interim: &[],
+            prosp_idx: 0,
+            iter_idx: 0,
+            should_fail: false,
+        };
+        if use_prosp && deck[..hand_size].contains(&prosp) {
+            hand.prosp_interim = &deck[hand_size..hand_size + 6]
+        }
 
-        hand.extend(deck.drain(0..hand_size));
-
-        let mut success = false;
-        if use_prosp && hand.iter().any(|x| x.eq(PROSP)) {
-            prosp_interim.extend(deck.drain(0..6));
-
-            let prosp_cards = prosp_interim.drain(..);
-            for c in prosp_cards {
-                if success {
-                    deck.push(c);
-                    continue;
-                }
-
-                hand.push(c);
-                for rule in tree_vec.iter() {
-                    if match_rule(&hand, &deck, &rule) {
-                        success = true;
-                    }
-                }
-
-                deck.push(hand.pop().unwrap());
-
-                if success {
-                    sum += 1;
-                }
-            }
-        } else {
-            if tree_vec.iter().any(|rule| match_rule(&hand, &deck, &rule)) {
+        loop {
+            if tree_vec.iter().any(|rule| match_rule(hand.clone(), &rule)) {
                 sum += 1;
+                break;
+            } else {
+                if !hand.next_hand() {
+                    break;
+                }
             }
         }
-        deck.extend(hand.drain(..));
-        /*eprintln!(
-            "Iter len: {}",
-            Instant::now().duration_since(start).as_micros()
-        )*/
     }
     println!("Success Rate: {}%", sum as f32 / iter as f32 * 100.0);
 }
 
-fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> bool {
+fn match_rule(hand: Hand, rule_tree: &RuleTree) -> bool {
     match rule_tree.rule_enum {
         Rule::ident => {
-            return hand.iter().any(|x| {
+            return hand.into_iter().any(|x| {
                 x.as_str()
                     == rule_tree
                         .normalized_string
@@ -154,7 +168,7 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
             });
         }
         Rule::contains_ident => {
-            return hand.iter().any(|x| {
+            return hand.into_iter().any(|x| {
                 x.as_str().contains(
                     rule_tree
                         .normalized_string
@@ -168,8 +182,8 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
             let ident = iter.next().unwrap();
             let comp = iter.next().unwrap();
 
-            let contains_fn = |ident: &RuleTree| {
-                hand.iter()
+            let contains_fn = |ident: &RuleTree, hand: Hand| {
+                hand.into_iter()
                     .filter(|x| {
                         x.contains(
                             ident
@@ -181,8 +195,8 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
                     })
                     .count()
             };
-            let equals_fn = |ident: &RuleTree| {
-                hand.iter()
+            let equals_fn = move |ident: &RuleTree, hand: Hand| {
+                hand.into_iter()
                     .filter(|x| {
                         x.as_str()
                             == ident
@@ -213,9 +227,9 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
             let num_found;
 
             if use_contains {
-                num_found = contains_fn(&ident);
+                num_found = contains_fn(&ident, hand);
             } else {
-                num_found = equals_fn(&ident);
+                num_found = equals_fn(&ident, hand);
             }
 
             match comp.rule.as_rule() {
@@ -226,18 +240,19 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
             }
         }
         Rule::not => {
-            let b = !match_rule(hand, deck, &rule_tree.inner.first().unwrap());
+            let b = !match_rule(hand, &rule_tree.inner.first().unwrap());
             return b;
         }
         Rule::exp => {
             let mut result = true;
             for inner_rule in rule_tree.inner.iter() {
+                let hand = hand.clone();
                 match inner_rule.rule_enum {
                     Rule::and => {
-                        result = result && match_rule(hand, deck, &inner_rule);
+                        result = result && match_rule(hand, &inner_rule);
                     }
                     Rule::or => {
-                        result = result || match_rule(hand, deck, &inner_rule);
+                        result = result || match_rule(hand, &inner_rule);
                     }
                     Rule::ident
                     | Rule::exp
@@ -245,7 +260,7 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
                     | Rule::not
                     | Rule::num_ident
                     | Rule::pick_multi => {
-                        result = match_rule(hand, deck, &inner_rule);
+                        result = match_rule(hand, &inner_rule);
                     }
                     _ => {
                         println!("Unknown rule: {:?}", inner_rule.rule.as_rule());
@@ -281,7 +296,8 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
             }
 
             for option in options {
-                let index = hand.iter().position(|x| x.as_str() == option);
+                let hand = hand.clone();
+                let index = hand.into_iter().position(|x| x.as_str() == option);
                 if let Some(index) = index {
                     if !cards_used[index] {
                         num -= 1;
@@ -295,7 +311,7 @@ fn match_rule(hand: &Vec<String>, deck: &Vec<String>, rule_tree: &RuleTree) -> b
             return num <= 0;
         }
         Rule::and | Rule::or => {
-            return match_rule(hand, deck, &rule_tree.inner.first().unwrap());
+            return match_rule(hand, &rule_tree.inner.first().unwrap());
         }
         _ => {
             println!("Unknown rule: {:?}", rule_tree.rule.as_rule());
